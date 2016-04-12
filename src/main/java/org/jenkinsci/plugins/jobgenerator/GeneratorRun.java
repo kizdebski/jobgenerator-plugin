@@ -106,7 +106,7 @@ public class GeneratorRun extends Build<JobGenerator, GeneratorRun> {
         NORMAL, SPECIAL_CHARS, REG_EXP;
     }
     private static final ReplaceType[] replaceTypes = ReplaceType.values();
-    
+
     private class DownstreamGenerator{
         private final AbstractProject job;
         private final List<List<ParametersAction>> importParams;
@@ -645,7 +645,7 @@ public class GeneratorRun extends Build<JobGenerator, GeneratorRun> {
 
         private void deleteJobs(JobGenerator job, boolean deleteChildren,
                                 List<String> deletedJobs){
-            int n = job.getLastSuccessfulBuild().getNumber();
+            int n = getLastMatchingGeneratedSuccessfulBuild(job);
             this.deleteJob(job, n, deletedJobs);
             if(!deleteChildren){
                 return;
@@ -675,6 +675,24 @@ public class GeneratorRun extends Build<JobGenerator, GeneratorRun> {
                     }
                 }
             }
+        }
+
+        private int getLastMatchingGeneratedSuccessfulBuild(JobGenerator job) {
+            final List<ParametersAction> params = getBuild().getActions(
+                    hudson.model.ParametersAction.class);
+            final String matchingName = getExpandedJobName(job, params);
+
+            GeneratorRun potentialSucceededBuild = job.getLastSuccessfulBuild();
+
+            while (potentialSucceededBuild != null) {
+                final String generatedJobName = getExpandedJobName(potentialSucceededBuild.getJobGenerator(),
+                        potentialSucceededBuild.getActions(hudson.model.ParametersAction.class));
+                if (matchingName.equals(generatedJobName) && potentialSucceededBuild.getAction(GeneratedJobBuildAction.class) != null) {
+                    return potentialSucceededBuild.getNumber();
+                }
+                potentialSucceededBuild = potentialSucceededBuild.getPreviousSuccessfulBuild();
+            }
+            throw new IllegalStateException("Cannot determine latest success generating build for job : " + matchingName);
         }
 
         private void deleteJob(JobGenerator job, int buildnum,
